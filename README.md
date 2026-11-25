@@ -5,12 +5,25 @@
 <h1 align="center">KVMoSTB</h1>
 
 <p align="center">
-  KVM over IP for a homelab PC, built on a Telkom IndiHome HG680-FJ set-top box.
+  A cheap and lightweight KVM over IP for homelab PC from a set-top box.
 </p>
 
-KVMoSTB turns an HG680-FJ into a small KVM-over-IP appliance. Open its web console in a browser to watch the target PC's screen, type, click, and mount an ISO as a USB CD-ROM. The target PC runs no agent and no driver, so it works in BIOS and UEFI.
+When a homelab PC will not boot, or needs a reinstall, you end up carrying a monitor and a keyboard to the rack. KVMoSTB replaces that trip with a browser tab. KVM over IP means you see the machine's screen and drive its keyboard and mouse across the network. KVMoSTB adds a virtual CD drive, so the machine can boot from an ISO that sits on your network.
 
-It is one Go binary with the web console embedded, two systemd units and a `.deb` package.
+It runs on an HG680-FJ set-top box with [Armbian](https://www.armbian.com), a Debian-based Linux for ARM boards. You need no dedicated KVM hardware: the STB, a USB capture dongle, a USB cable and an HDMI cable are the whole kit. The dongle reads the target's HDMI output, and the STB's USB OTG port presents a keyboard, a mouse and a CD-ROM drive to the target. The target sees ordinary USB devices and has nothing to install. The aim is for the same path to work in BIOS and UEFI, but firmware has not been tested yet (see [Limitations](#limitations)).
+
+The software is one [Go](https://go.dev) binary of about 8 MB with the web console inside it. On the STB it used about 19 MB of memory while serving the console, out of the board's 2 GB. It reads video through [V4L2](https://www.kernel.org/doc/html/latest/userspace-api/media/v4l/v4l2.html) as MJPEG, builds the USB gadget through [Linux configfs](https://www.kernel.org/doc/html/latest/usb/gadget_configfs.html), and serves a framework-free HTML and JavaScript console over HTTP and WebSocket. systemd starts it at boot, and a `.deb` package installs it.
+
+| Layer | Technology |
+| --- | --- |
+| Board | HG680-FJ, Amlogic S905X2, arm64 |
+| Operating system | Armbian (Debian Trixie), Linux 6.12 |
+| Language | Go 1.24, with cgo for V4L2 |
+| Video | MS2109 USB capture dongle, V4L2, MJPEG |
+| Keyboard and mouse | dwc2 USB OTG gadget, configfs, `f_hid` |
+| Virtual media | `f_mass_storage`, ISO files from NFS or a local folder |
+| Console | Vanilla HTML and JavaScript, HTTP and WebSocket, form login with a session cookie |
+| Packaging | `.deb`, systemd, GitHub Actions release workflow |
 
 ## Contents
 
@@ -82,25 +95,21 @@ flowchart LR
 
 | Part | Notes |
 | --- | --- |
-| Telkom IndiHome HG680-FJ | Amlogic S905X2, 4x Cortex-A53, 2 GB RAM, 8 GB eMMC. Runs Armbian Trixie with a 6.12 kernel (`6.12.117-ophub` was tested). |
+| STB HG680-FJ | Amlogic S905X2, 4x Cortex-A53, 2 GB RAM, 8 GB eMMC. Runs Armbian Trixie with a 6.12 kernel (`6.12.117-ophub` was tested). |
 | MACROSILICON MS2109 capture dongle (`534d:2109`) | HDMI in, UVC out. Plug it into the STB's USB 3.0 host port. |
 | USB A-to-A cable | From the STB's USB 2.0 port to a USB port on the target PC. |
-| USB 2.0 hub (optional) | The hub tested here is a 4-port VIA Labs `2109:2822` with a built-in AX88179A gigabit NIC. A self-powered hub is safer. |
 | HDMI cable | Target PC to the capture dongle. |
 
 ### Ports on the STB
 
 | Port | Controller | Use |
 | --- | --- | --- |
-| USB 3.0 | dwc3 (xHCI) | Host. The hub, the capture dongle and the optional gigabit NIC hang off it. |
+| USB 3.0 | dwc3 (xHCI) | Host. The hub and the capture dongle hang off it. |
 | USB 2.0 Type-A | dwc2 OTG (`ff400000.usb`) | Device. It presents the keyboard, mouse and CD-ROM to the target PC. |
 
 ```text
 dwc3 USB 3.0 host port
-└── VIA Labs 2109:2822 USB 2.0 hub
-    ├── ASIX 0b95:1790 AX88179A gigabit NIC (driver cdc_ncm)
-    └── MACROSILICON 534d:2109 capture dongle (UVC)
-
+└── MACROSILICON 534d:2109 capture dongle (UVC)
 dwc2 USB 2.0 OTG port ── A-to-A cable ──> target PC
 ```
 
@@ -111,24 +120,52 @@ The gadget needs these kernel options, all present in the tested kernel:
 
 ### Known hardware limits
 
-- Everything on the USB 3.0 port shares one USB 2.0 bus of 480 Mbps. 1080p60 MJPEG is about 160 Mbps and can starve the NIC; 1080p30 is the safe setting.
+- The STB's built-in Ethernet port is 100 Mbps. A 1080p60 MJPEG stream can need more than that, so lower the resolution or frame rate if the picture stutters.
 - The STB's USB power is weak. If devices drop out, use a self-powered hub.
-- The ASIX NIC needs the `cdc_ncm` module, which the Armbian image does not load by default. Add `cdc_ncm` to `/etc/modules-load.d/usb-net.conf`.
 - The board has no video input. The capture dongle is required.
 
-The device tree source for this board is in [ophub/amlogic-s9xxx-armbian#3089](https://github.com/ophub/amlogic-s9xxx-armbian/pull/3089).
+### Device tree
+
+`hg680-fj/` holds the device tree of the board:
+
+| File | Size | What it is |
+| --- | --- | --- |
+| `meson-g12a-hg680-fj.dtb` | 75,627 bytes | The compiled device tree blob get from [ophub/amlogic-s9xxx-armbian](https://github.com/ophub/amlogic-s9xxx-armbian) |
+| `meson-g12a-hg680-fj.dts` | 97,594 bytes | The same tree as source text. |
+
+These files are a hardware reference. The build does not use them and the package does not install them. The model is `HG680-FJ`, compatible with `hg680,fj` and `amlogic,g12a`. The `.dts` is plain decompiler output with numeric phandles and no comments, and `dtc` 1.7.2 compiles it back to the `.dtb` byte for byte.
+
+The nodes that matter to KVMoSTB:
+
+| Node | Setting |
+| --- | --- |
+| `usb@ffe09000` | `amlogic,meson-g12a-usb-ctrl` glue with `dr_mode = "otg"`. VBUS comes from the `USB_PWR_EN` regulator. |
+| `usb@ff400000` | dwc2 with `dr_mode = "peripheral"`. This is the gadget port. |
+| `usb@ff500000` | dwc3 with `dr_mode = "host"`. The capture dongle plugs into it. |
+| `opp-2016000000` | A 2.016 GHz CPU operating point. |
+
+The STB in this project boots its own copy of the tree from `/boot/dtb/amlogic/`, and that copy is a different build of 80,323 bytes. Its USB nodes use the same modes, but node names and some properties differ, for example `sd@` in this reference against `mmc@` in the booted tree. Treat the files here as a reference, not as a replacement for what your STB boots. To read the tree your STB runs, or to check these files:
+
+```sh
+dtc -I dtb -O dts /boot/dtb/amlogic/meson-g12a-hg680-fj.dtb              # the running tree
+dtc -I dts -O dtb -o /tmp/check.dtb hg680-fj/meson-g12a-hg680-fj.dts     # compile the reference
+```
+
+`dtc` prints warnings when it compiles the reference and still exits 0.
+
+The board's device tree was added upstream in [ophub/amlogic-s9xxx-armbian#3089](https://github.com/ophub/amlogic-s9xxx-armbian/pull/3089).
 
 ## Screenshots
 
-<!-- TBD: the maintainer adds these by hand. -->
-
-| Console | Login |
+| Login | Console |
 | --- | --- |
-| _TBD_ | _TBD_ |
+| <img src="screenshots/login.png" width="640" alt="The login page, signed out"> |  <img src="screenshots/console.png" width="640" alt="The web console with the live video stream"> |
 
 | On-screen keyboard | Virtual media |
 | --- | --- |
-| _TBD_ | _TBD_ |
+| <img src="screenshots/keyboard.png" width="640" alt="The on-screen keyboard card, open"> | <img src="screenshots/virtual-media-mounted.png" width="640" alt="The virtual media card with an ISO mounted"> |
+
+More captures in [`screenshots`](screenshots/)
 
 ## How it works
 

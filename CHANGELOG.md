@@ -21,8 +21,9 @@ diagnosis reports into one history.
   mount as a USB CD-ROM through `f_mass_storage`. The console mounts and unmounts with
   one toggle button, and `ISO_AUTO_MOUNT` mounts the newest image at boot.
 - Web console: a single page with light and dark themes, a full-size on-screen keyboard
-  with sticky Ctrl and Alt, a clipboard paste box that types text into the target, and
-  fullscreen with local scaling. The keyboard card hides below 700 px.
+  with sticky Ctrl and Alt and the F keys in groups (F1-F4, F5-F8, F9-F12), a collapsible
+  clipboard card that types pasted text into the target, and fullscreen with local
+  scaling. The keyboard card hides below 700 px.
 - Authentication: form login with an in-memory session cookie (12 hours). Login fails
   closed when `ADMIN_USER` or `ADMIN_PASSWORD` is empty.
 - Resilience: a missing capture device leaves input, ISO and the console running with
@@ -33,6 +34,7 @@ diagnosis reports into one history.
 - Environment options `LISTEN_ADDRESS`, `LISTEN_PORT`, `ISO_AUTO_MOUNT`, `ISO_LOCATION_DIR`
   and `LOG_LEVEL`.
 - A GitHub Actions workflow that builds and publishes the `.deb` when a `v*.*.*` tag is pushed.
+- A reference copy of the HG680-FJ device tree (`hg680-fj/`, `.dts` and `.dtb`), documented in the README.
 
 ### Changed
 

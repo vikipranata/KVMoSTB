@@ -264,14 +264,13 @@ window.addEventListener("keyup", (e) => {
 
 // [label, keyCode, widthUnits?, isRightModifier?]
 // An empty label is a transparent spacer; code 0 is a no-op key (Fn has no HID report).
-// Rows total 18.3 key units so they share the left edge. Row 0 has one fewer gap
-// (no spacer after F12), so its right edge sits one gap in, by design.
+// Rows total 18.3 key units so they share the left edge. Row 0 groups the F keys
+// (Esc | F1-F4 | F5-F8 | F9-F12) with 0.4u spacers, and F12 keeps the normal key
+// gap to Prnt so the cluster starts exactly above the edit block.
 const KBD_ROWS = [
-	// F1-F12 are 1.125u and F12 sits flush against Prnt (no gap):
-	// the cluster starts at 15.0u, exactly above the edit block.
-	[["Esc",27,1.5],["F1",112,1.125],["F2",113,1.125],["F3",114,1.125],["F4",115,1.125],
-	 ["F5",116,1.125],["F6",117,1.125],["F7",118,1.125],["F8",119,1.125],
-	 ["F9",120,1.125],["F10",121,1.125],["F11",122,1.125],["F12",123,1.125],
+	[["Esc",27,1.2],["",0,0.4],["F1",112,1.05],["F2",113,1.05],["F3",114,1.05],["F4",115,1.05],
+	 ["",0,0.4],["F5",116,1.05],["F6",117,1.05],["F7",118,1.05],["F8",119,1.05],
+	 ["",0,0.4],["F9",120,1.05],["F10",121,1.05],["F11",122,1.05],["F12",123,1.05],
 	 ["Prnt",44,1.1],["ScrLk",145,1.1],["Pause",19,1.1]],
 	[["`",192],["1",49],["2",50],["3",51],["4",52],["5",53],["6",54],["7",55],
 	 ["8",56],["9",57],["0",48],["-",189],["=",187],["Backspace",8,2],
@@ -340,18 +339,6 @@ function buildVirtualKeyboard() {
 					"--kbd-w",
 					"calc(var(--kbd-u) * " + units + " + var(--kbd-g) * " + (units - 1) + ")");
 			}
-			if (units === 1.125) {
-				// F1-F12 absorb the one gap row 0 lacks, so F12 sits flush against Prnt
-				// and the cluster stays above the edit block.
-				key.style.setProperty(
-					"--kbd-w",
-					"calc(var(--kbd-u) * 1.125 + var(--kbd-g) * 5 / 24)");
-			}
-			if (label === "Prnt") {
-				// Cancel the flex gap with F12 (row 0 has one fewer gap
-				// than the other rows, so the gap cannot exist).
-				key.style.marginLeft = "calc(-1 * var(--kbd-g))";
-			}
 			if (!label || !code) {
 				rowEl.appendChild(key);
 				continue; // spacer or no-op key: no HID frame
@@ -406,6 +393,16 @@ if (kbdToggle && keyboardCard) {
 	kbdToggle.addEventListener("click", () => {
 		const open = keyboardCard.classList.toggle("is-open");
 		kbdToggle.setAttribute("aria-expanded", String(open));
+	});
+}
+
+// CLIPBOARD dropdown: same collapse pattern as the keyboard card.
+const clipToggle = $("clip-toggle");
+const clipboardCard = $("clipboard-card");
+if (clipToggle && clipboardCard) {
+	clipToggle.addEventListener("click", () => {
+		const open = clipboardCard.classList.toggle("is-open");
+		clipToggle.setAttribute("aria-expanded", String(open));
 	});
 }
 

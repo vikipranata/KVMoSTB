@@ -214,6 +214,10 @@
 		transition: transform 0.15s ease;
 	}
 	.keyboard-card.is-open .kbd-toggle__caret { transform: rotate(180deg); }
+	.clipboard-card.is-open .kbd-toggle__caret { transform: rotate(180deg); }
+	.clip-body { display: none; flex-direction: column; }
+	.clipboard-card.is-open .clip-body { display: flex; }
+	.clipboard-card .clip-body { margin-top: var(--style-spacing-3); }
 	/* Virtual keyboard (full-size, theme-aware; scrolls internally on
 	   narrow screens so the page itself never overflows) */
 	.kbd {
@@ -354,12 +358,17 @@
 		<div class="kbd" id="kbd" aria-label="Virtual keyboard"></div>
 	</div>
 
-	<div class="card clipboard-card">
-		<div class="metric-card__label">Clipboard</div>
-		<textarea id="clip-text" rows="2" placeholder="Paste here then Send"></textarea>
-		<div class="clipboard-card__actions">
-			<button class="btn btn--primary" id="btn-clip-paste">Paste</button>
-			<span class="clipboard-card__status" id="clip-status"></span>
+	<div class="card clipboard-card" id="clipboard-card">
+		<button type="button" class="kbd-toggle" id="clip-toggle" aria-expanded="false" aria-controls="clip-body">
+			<span class="metric-card__label">Clipboard</span>
+			<span class="kbd-toggle__caret" aria-hidden="true">&#9662;</span>
+		</button>
+		<div class="clip-body" id="clip-body">
+			<textarea id="clip-text" rows="2" placeholder="Paste here.."></textarea>
+			<div class="clipboard-card__actions">
+				<button class="btn btn--primary" id="btn-clip-paste">Paste</button>
+				<span class="clipboard-card__status" id="clip-status"></span>
+			</div>
 		</div>
 	</div>
 

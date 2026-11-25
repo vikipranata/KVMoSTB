@@ -37,3 +37,5 @@ go.work.sum
 dist/
 *.deb
 *.bin
+*.img
+*.img.gz
