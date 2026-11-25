@@ -88,10 +88,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           V: ${{ steps.version.outputs.version }}
         run: |
-          # --clobber: a re-run of this step replaces the same-named assets
-          # instead of failing on the existing release.
-          gh release create "$GITHUB_REF_NAME" dist/*.deb dist/*.sha256 \
-            --clobber --verify-tag --title "KVMoSTB $V" --notes-file notes.md
+          # Idempotent: a re-run, or a release left behind by an earlier
+          # workflow version, edits the existing release and re-uploads the
+          # assets instead of failing on 'release already exists'.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --title "KVMoSTB $V" --notes-file notes.md
+            gh release upload --clobber "$GITHUB_REF_NAME" dist/*.deb dist/*.sha256
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.deb dist/*.sha256 \
+              --title "KVMoSTB $V" --notes-file notes.md
+          fi
 
       - name: Keep the package as a build artifact
         if: github.event_name == 'workflow_dispatch'
