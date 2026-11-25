@@ -1,0 +1,18 @@
+[Unit]
+Description=KVMoSTB KVM-over-IP console
+After=network.target kvmostb-gadget.service
+Wants=kvmostb-gadget.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/kvmostb/kvmostb.env
+# No -video flag: the binary auto-detects the MS2109 by its advertised
+# stream menu, so USB re-enumeration (re-plug) cannot break the node name.
+ExecStart=/usr/bin/kvmostb
+Restart=always
+RestartSec=3
+# Root is needed to open the V4L2 and /dev/hidgN device nodes.
+User=root
+
+[Install]
+WantedBy=multi-user.target

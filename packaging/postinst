@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+# Local ISO pool; the NFS share /mnt/shared/iso takes priority when mounted.
+mkdir -p /var/lib/kvmostb/iso
+
+# Copy the example config once and never overwrite a configured file.
+if [ ! -f /etc/kvmostb/kvmostb.env ]; then
+	cp /etc/kvmostb/kvmostb.env.example /etc/kvmostb/kvmostb.env
+	chmod 600 /etc/kvmostb/kvmostb.env
+fi
+
+# Enable at boot, then start. Restarting the daemon makes an upgrade load the new binary.
+if [ -d /run/systemd/system ]; then
+	systemctl daemon-reload >/dev/null 2>&1 || true
+	systemctl enable kvmostb-gadget.service kvmostb.service >/dev/null 2>&1 || true
+	systemctl start kvmostb-gadget.service >/dev/null 2>&1 || true
+	systemctl restart kvmostb.service >/dev/null 2>&1 || true
+fi

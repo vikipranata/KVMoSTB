@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<!--
+	KVMoSTB web console. Vanilla HTML/JS on the shared CSS design system;
+	no CDN assets, so the font stack falls back to system fonts.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KVMoSTB</title>
+<script>
+	// Resolve the theme before paint (no flash). Light is the default.
+	(function () {
+		var t = localStorage.getItem("vq-theme");
+		if (t === "dark") document.documentElement.setAttribute("data-theme", "dark");
+	})();
+</script>
+<link rel="stylesheet" href="/shared-css.css">
+<link rel="icon" href="/favicon/favicon-16x16.png" sizes="16x16">
+<link rel="icon" href="/favicon/favicon-32x32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/favicon/apple-touch-icon.png">
+<link rel="manifest" href="/favicon/site.webmanifest">
+<style>
+	.topbar__icon {
+		width: 28px;
+		height: 28px;
+		flex: none;
+		border-radius: var(--style-radius-md);
+	}
+	.video-stage {
+		position: relative;
+		background: #000;
+		border-radius: var(--style-radius-md);
+		overflow: hidden;
+		min-height: 240px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: crosshair;
+	}
+	.video-stage img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		max-height: 70vh;
+		object-fit: contain;
+	}
+	/* Fullscreen fills the viewport and does not preserve the aspect ratio. */
+	.video-stage:fullscreen { background: #000; }
+	.video-stage:fullscreen img { object-fit: fill; width: 100vw; height: 100vh; max-height: none; }
+	.video-stage__hint {
+		position: absolute;
+		bottom: var(--style-spacing-3);
+		right: var(--style-spacing-3);
+		font-size: var(--style-text-xs);
+		color: rgba(255, 255, 255, 0.7);
+		pointer-events: none;
+	}
+	.toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--style-spacing-3);
+		padding: var(--style-spacing-4) var(--style-spacing-4);
+	}
+	.toolbar .spacer { flex: 1; }
+	.toolbar__group {
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--style-spacing-3);
+	}
+	.toolbar__group-label {
+		margin-right: var(--style-spacing-2);
+		font-size: var(--style-text-xs);
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--style-text-muted);
+	}
+	.seg {
+		display: inline-flex;
+		border: 1px solid var(--style-border-strong);
+		border-radius: var(--style-radius-md);
+		overflow: hidden;
+	}
+	.seg button {
+		background: var(--style-bg-surface);
+		color: var(--style-text-secondary);
+		border: 0;
+		padding: 8px 12px;
+		font-size: var(--style-text-sm);
+		font-weight: 600;
+		cursor: pointer;
+		transition: background var(--style-motion-fast),
+			color var(--style-motion-fast);
+	}
+	.seg button + button { border-left: 1px solid var(--style-border-default); }
+	.seg button.is-active {
+		background: var(--style-bg-brand-soft);
+		color: var(--style-text-brand);
+	}
+	.seg button:focus-visible, .btn:focus-visible, .field input:focus-visible,
+	.field select:focus-visible {
+		outline: none;
+		box-shadow: 0 0 0 3px rgba(37, 157, 220, 0.32);
+	}
+	.grid-2 {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+		gap: var(--style-spacing-4);
+	}
+	@media (min-width: 901px) { .grid-2 { gap: 0; } .grid-2 .card { margin: 0; } .grid-2 .card:first-child { border-radius: var(--style-radius-lg) 0 0 var(--style-radius-lg); border-right: 0; } .grid-2 .card:last-child { border-radius: 0 var(--style-radius-lg) var(--style-radius-lg) 0; } }
+	select, .field select {
+		font-family: var(--style-font-mono);
+		font-size: var(--style-text-sm);
+		height: var(--style-button-height);
+		padding: 0 var(--style-spacing-3);
+		background: var(--style-bg-surface);
+		color: var(--style-text-primary);
+		border: 1px solid var(--style-border-strong);
+		border-radius: var(--style-radius-md);
+		transition: border-color var(--style-motion-fast), box-shadow var(--style-motion-fast);
+	}
+	select:hover { border-color: var(--style-border-brand); }
+	select option { background: var(--style-bg-surface); color: var(--style-text-primary); }
+	.toolbar { padding: var(--style-spacing-3) var(--style-spacing-4) var(--style-spacing-4); gap: var(--style-spacing-2); }
+	.toolbar .btn { height: 34px; padding: 0 12px; font-size: var(--style-text-sm); }
+	.toolbar select { height: 34px; padding: 0 8px; font-size: var(--style-text-sm); }
+	.toolbar__group { gap: var(--style-spacing-2); }
+	.toolbar__group-label { margin-right: var(--style-spacing-1); }
+	#btn-logout { height: 24px; padding: 0 10px; font-size: var(--style-text-sm); }
+	.fitswitch { min-width: 72px; text-align: center; }
+	/* ISO card: head row (label and select left, buttons right), mounted path below. */
+	.iso-card {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--style-spacing-3);
+		padding: var(--style-spacing-4);
+	}
+	.iso-card__head {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--style-spacing-2);
+	}
+	.iso-card__head select { flex: 1 1 140px; min-width: 120px; height: 34px; }
+	.iso-card #iso-current, .iso-card #iso-error { flex-basis: 100%; margin: 0; }
+	.iso-card__actions {
+		margin-left: auto;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--style-spacing-2);
+	}
+	.iso-card__actions .btn { height: 34px; padding: 0 12px; font-size: var(--style-text-sm); }
+	@media (max-width: 900px) {
+		.kpis { grid-template-columns: repeat(2, 1fr); gap: var(--style-spacing-3); }
+		.kpis .metric-card { padding: var(--style-spacing-3); }
+		.kpis .metric-card__value { font-size: var(--style-text-base); }
+		.kpis .metric-card__value--mono { font-size: var(--style-text-sm); }
+		/* Flexible toolbar: natural row wrap, groups share the row */
+		.toolbar .spacer { display: none; }
+		.toolbar__group select { flex: 1 1 110px; min-width: 0; }
+		.topbar__right { flex-wrap: wrap; justify-content: flex-end; }
+		.video-stage { min-height: 180px; }
+		.video-stage img { max-height: 55vh; }
+		/* ISO card stacks top-to-bottom: label, select, message, buttons */
+		.iso-card__head { flex-direction: column; align-items: stretch; }
+		.iso-card__head select { flex: 1 1 auto; }
+		.iso-card #iso-current { order: 1; }
+		.iso-card #iso-error { order: 2; }
+		.iso-card__actions { order: 3; margin-left: 0; width: 100%; }
+	}
+	/* Controls row wrapper: inline in the group row on desktop... */
+	.toolbar__row { display: contents; }
+	/* ...a real row on mobile (label above, controls below) */
+	/* Mobile: toolbar stacks, group label row then controls row */
+	@media (max-width: 480px) {
+		.toolbar { flex-direction: column; align-items: stretch; }
+		.toolbar__group { flex-direction: column; align-items: stretch; gap: 6px; }
+		.toolbar__group-label { margin-right: 0; }
+		.toolbar__row { display: flex; flex-wrap: wrap; gap: 6px; }
+		.toolbar .btn { height: 28px; padding: 0 10px; font-size: var(--style-text-xs); flex: 1 1 auto; min-width: 0; }
+		.toolbar select { height: 28px; padding: 0 6px; font-size: var(--style-text-xs); flex: 1 1 110px; min-width: 0; }
+		.fitswitch { min-width: 56px; }
+	}
+	/* Virtual keyboard card: own card between video-card and iso-card.
+	   Dropdown pattern: the card header is a toggle; the panel only
+	   renders while open (.is-open). */
+	.keyboard-card {
+		padding: var(--style-spacing-4);
+		display: flex;
+		flex-direction: column;
+		gap: var(--style-spacing-3);
+	}
+	.kbd-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		background: none;
+		border: 0;
+		padding: 0;
+		cursor: pointer;
+	}
+	.kbd-toggle .metric-card__label { margin-bottom: 0; }
+	.kbd-toggle__caret {
+		font-size: var(--style-text-xs);
+		color: var(--style-text-muted);
+		transition: transform 0.15s ease;
+	}
+	.keyboard-card.is-open .kbd-toggle__caret { transform: rotate(180deg); }
+	/* Virtual keyboard (full-size, theme-aware; scrolls internally on
+	   narrow screens so the page itself never overflows) */
+	.kbd {
+		/* Fill the keyboard-card width: --kbd-u derives from the
+		   container (18.3 key units + 17.3 gaps per row) so the key
+		   ratio tracks the card at any width. */
+		--kbd-g: 6px;
+		--kbd-u: calc((100% - var(--kbd-g) * 17.3) / 18.3);
+		width: 100%;
+		display: none;
+		flex-direction: column;
+		gap: var(--kbd-g);
+		padding-bottom: 2px;
+	}
+	.keyboard-card.is-open .kbd { display: flex; }
+	.kbd-row { display: flex; gap: var(--kbd-g); flex: 0 0 auto; width: 100%; }
+	.kbd-key {
+		flex: 0 0 auto;
+		width: var(--kbd-w, var(--kbd-u));
+		height: 34px;
+		padding: 0 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font: 500 11px/1 var(--style-font-sans);
+		color: var(--style-text-primary);
+		background: var(--style-bg-surface);
+		border: 1px solid var(--style-border-default);
+		border-radius: var(--style-radius-md);
+		box-shadow: var(--style-shadow-xs);
+		cursor: pointer;
+		user-select: none;
+		-webkit-user-select: none;
+		touch-action: none;
+	}
+	.kbd-key:hover { border-color: var(--style-border-strong); }
+	.kbd-key { overflow: hidden; }
+	.kbd-key--spacer {
+		background: transparent;
+		border-color: transparent;
+		box-shadow: none;
+		cursor: default;
+	}
+	/* spacers are invisible keys - never show the hover outline */
+	.kbd-key--spacer:hover { border-color: transparent; }
+	.kbd-key.is-down {
+		background: var(--style-action-primary);
+		border-color: var(--style-action-primary);
+		color: var(--style-text-inverse);
+	}
+	/* roomier card: the default .card padding reads cramped here */
+	.clipboard-card { padding: var(--style-spacing-4); }
+	.clipboard-card__actions {
+		display: flex;
+		align-items: center;
+		gap: var(--style-spacing-3);
+		margin-top: var(--style-spacing-3);
+	}
+	#clip-text {
+		width: 100%;
+		box-sizing: border-box;
+		min-height: 150px;
+		resize: vertical;
+		margin-top: var(--style-spacing-3);
+		padding: var(--style-spacing-2) var(--style-spacing-3);
+		font: 400 13px/1.4 var(--style-font-sans);
+		color: var(--style-text-primary);
+		background: var(--style-bg-surface);
+		border: 1px solid var(--style-border-default);
+		border-radius: var(--style-radius-md);
+	}
+	.clipboard-card__status {
+		font-size: var(--style-text-xs);
+		color: var(--style-text-secondary);
+	}
+	/* the full keyboard does not fit a phone - hide the whole card;
+	   shrink the ISO select so long filenames fit */
+	@media (max-width: 700px) {
+		.keyboard-card { display: none; }
+		.iso-card__head select { font-size: var(--style-text-xs); }
+	}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+	<div class="topbar__left">
+		<img class="topbar__icon" src="/kvmostb.webp" alt="" width="28" height="28">
+		<span class="topbar__brand">KVM<em>o</em>STB</span>
+	</div>
+	<div class="topbar__right">
+		<span class="chip chip--info" id="chip-hid">offline</span>
+		<button class="theme-toggle" id="theme-toggle" role="switch" aria-checked="false" aria-label="Toggle dark mode"><span class="theme-toggle__knob"></span></button>
+		<button class="btn" id="btn-logout">Logout</button>
+	</div>
+</header>
+
+<main class="main">
+	<div class="kpis" id="kpis">
+		<div class="metric-card"><div class="metric-card__label">Resolution</div><div class="metric-card__value--mono" id="kpi-res">—</div></div>
+		<div class="metric-card"><div class="metric-card__label">Frame rate</div><div class="metric-card__value" id="kpi-fps">—</div></div>
+		<div class="metric-card"><div class="metric-card__label">Bitrate</div><div class="metric-card__value" id="kpi-bitrate">—</div></div>
+		<div class="metric-card"><div class="metric-card__label">USB state</div><div class="metric-card__value--mono" id="kpi-udc">—</div></div>
+	</div>
+
+	<div class="card video-card">
+		<div class="video-stage" id="stage" style="margin:var(--style-spacing-3) var(--style-spacing-4) 0">
+			<img id="video" src="/api/video/stream" alt="KVM video stream">
+			<span class="video-stage__hint">keyboard + mouse act on this area</span>
+		</div>
+		<p id="input-error" role="alert" class="error" style="display:none;margin:0;padding:0 var(--style-spacing-4)"></p>
+		<div class="toolbar">
+			<div class="toolbar__group">
+				<span class="toolbar__group-label">Stream</span>
+				<div class="toolbar__row">
+					<select id="sel-res" aria-label="Resolution"></select>
+					<select id="sel-fps" aria-label="Frame rate"></select>
+					<button class="btn btn--primary" id="btn-apply">Apply</button>
+				</div>
+			</div>
+			<div class="spacer"></div>
+			<div class="toolbar__group">
+				<span class="toolbar__group-label">Display</span>
+				<div class="toolbar__row">
+					<button class="btn" id="btn-reset">Refresh</button>
+					<button class="btn" id="btn-screenshot">Screenshot</button>
+					<button class="btn" id="btn-fullscreen">Fullscreen</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="card keyboard-card" id="keyboard-card">
+		<button type="button" class="kbd-toggle" id="kbd-toggle" aria-expanded="false" aria-controls="kbd">
+			<span class="metric-card__label">Virtual Keyboard</span>
+			<span class="kbd-toggle__caret" aria-hidden="true">&#9662;</span>
+		</button>
+		<div class="kbd" id="kbd" aria-label="Virtual keyboard"></div>
+	</div>
+
+	<div class="card clipboard-card">
+		<div class="metric-card__label">Clipboard</div>
+		<textarea id="clip-text" rows="2" placeholder="Paste here then Send"></textarea>
+		<div class="clipboard-card__actions">
+			<button class="btn btn--primary" id="btn-clip-paste">Paste</button>
+			<span class="clipboard-card__status" id="clip-status"></span>
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="iso-card">
+			<div class="iso-card__head">
+				<div class="metric-card__label">Mount Virtual Media</div>
+				<select id="sel-iso" aria-label="Available ISOs"></select>
+			</div>
+			<div class="iso-card__actions">
+				<button class="btn btn--primary fitswitch" id="iso-switch" aria-label="Virtual media: Mount (click to toggle mount/unmount)">
+					<span id="iso-switch-label">Mount</span>
+				</button>
+				<button class="btn" id="btn-iso-refresh" title="Rescan">↻</button>
+			</div>
+			<div class="td value" id="iso-current">—</div>
+			<p id="iso-error" role="alert" class="error" style="display:none"></p>
+		</div>
+	</div>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

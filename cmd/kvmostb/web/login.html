@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!--
+	KVMoSTB login page. A form login sets the kvmostb_session cookie.
+	Vanilla HTML/JS on the shared CSS design system; no CDN assets.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KVMoSTB - sign in</title>
+<script>
+	// Resolve the theme before paint (no flash). Light is the default.
+	(function () {
+		var t = localStorage.getItem("vq-theme");
+		if (t === "dark") document.documentElement.setAttribute("data-theme", "dark");
+	})();
+</script>
+<link rel="stylesheet" href="/shared-css.css">
+<link rel="icon" href="/favicon/favicon-16x16.png" sizes="16x16">
+<link rel="icon" href="/favicon/favicon-32x32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/favicon/apple-touch-icon.png">
+<link rel="manifest" href="/favicon/site.webmanifest">
+<style>
+	body {
+		min-height: 100vh;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: var(--style-spacing-4);
+	}
+	.login-card {
+		width: 100%;
+		max-width: 420px;
+		margin-bottom: 0;
+		padding: var(--style-spacing-6);
+	}
+	.login-card__title {
+		margin-bottom: var(--style-spacing-6);
+		text-align: center;
+		font-size: var(--style-text-2xl);
+	}
+	.login-card__icon {
+		display: block;
+		width: 64px;
+		height: 64px;
+		margin: 0 auto var(--style-spacing-4);
+		border-radius: var(--style-radius-md);
+	}
+</style>
+</head>
+<body>
+<main class="card login-card">
+	<img class="login-card__icon" src="/kvmostb.webp" alt="" width="64" height="64">
+	<div class="topbar__brand login-card__title">KVM<em>o</em>STB</div>
+	<form id="login-form" class="form">
+		<div class="field">
+			<label class="field__label" for="username">Username</label>
+			<input id="username" name="username" type="text" autocomplete="username" required autofocus>
+		</div>
+		<div class="field">
+			<label class="field__label" for="password">Password</label>
+			<input id="password" name="password" type="password" autocomplete="current-password" required>
+		</div>
+		<p id="login-error" role="alert" class="error" style="display:none">Invalid username or password</p>
+		<button type="submit" class="btn btn--primary">Login</button>
+	</form>
+</main>
+<script>
+	"use strict";
+	(function () {
+		var form = document.getElementById("login-form");
+		var err = document.getElementById("login-error");
+		form.addEventListener("submit", function (e) {
+			e.preventDefault();
+			fetch("/api/login", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					username: document.getElementById("username").value,
+					password: document.getElementById("password").value
+				})
+			}).then(function (res) {
+				if (res.ok) {
+					location.href = "/";
+				} else {
+					err.style.display = "";
+				}
+			}).catch(function () {
+				err.style.display = "";
+			});
+		});
+	})();
+</script>
+</body>
+</html>

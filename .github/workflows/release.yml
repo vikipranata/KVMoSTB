@@ -1,0 +1,86 @@
+name: Release
+
+# Push a tag such as v1.0.0 to build kvmostb_1.0.0_arm64.deb and publish it.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build without the leading v (for example 1.0.1)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            version="$INPUT_VERSION"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-~+.][0-9A-Za-z.]+)?$'; then
+            echo "::error::'$version' is not a valid Debian version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Install the arm64 cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc-aarch64-linux-gnu libc6-dev-arm64-cross linux-libc-dev-arm64-cross
+
+      - name: Test
+        run: go test ./...
+        env:
+          GOPROXY: "off"
+          GOFLAGS: "-mod=mod"
+
+      - name: Build the package
+        run: ./packaging/build-deb.sh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Check the package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          deb="dist/kvmostb_${VERSION}_arm64.deb"
+          dpkg-deb -I "$deb"
+          dpkg-deb -c "$deb"
+          dpkg-deb -x "$deb" /tmp/pkg
+          file /tmp/pkg/usr/bin/kvmostb | grep -q 'ARM aarch64'
+          (cd dist && sha256sum "$(basename "$deb")" > "$(basename "$deb").sha256")
+
+      - name: Publish the release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.deb
+            dist/*.sha256
+          generate_release_notes: true
+
+      - name: Keep the package as a build artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kvmostb-deb
+          path: dist/*
