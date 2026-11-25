@@ -1,22 +1,25 @@
+# A v* tag pushes a release: the arm64 .deb is built from the tagged commit
+# and published as a GitHub release with its sha256 checksum. Release notes
+# are the "## [version]" section of CHANGELOG.md (pattern: vaultite/vaultite's
+# release.yml).
 name: Release
-
-# Push a tag such as v1.0.0 to build kvmostb_1.0.0_arm64.deb and publish it.
 on:
   push:
-    tags:
-      - "v[0-9]*.[0-9]*.[0-9]*"
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       version:
         description: "Version to build without the leading v (for example 1.0.1)"
         required: true
-
+concurrency:
+  group: release-${{ github.ref }}
 permissions:
   contents: write
 
 jobs:
   deb:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -69,18 +72,29 @@ jobs:
           file /tmp/pkg/usr/bin/kvmostb | grep -q 'ARM aarch64'
           (cd dist && sha256sum "$(basename "$deb")" > "$(basename "$deb").sha256")
 
+      # The notes are the "## [version]" section of CHANGELOG.md, with a link
+      # to the full changelog appended (vaultite's pattern).
+      - name: Release notes
+        if: github.event_name == 'push'
+        env:
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          awk -v h="## [$V]" 'index($0, h) == 1 { on = 1; next } on && /^##/ { exit } on' CHANGELOG.md > notes.md
+          printf '\nEvery change: [CHANGELOG.md](%s/blob/%s/CHANGELOG.md).\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" >> notes.md
+
       - name: Publish the release
         if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/*.deb
-            dist/*.sha256
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.deb dist/*.sha256 \
+            --verify-tag --title "KVMoSTB $V" --notes-file notes.md
 
       - name: Keep the package as a build artifact
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: kvmostb-deb
+          if-no-files-found: error
           path: dist/*
